@@ -20,6 +20,8 @@
  */
 defined('SYSPATH') or die('No direct script access.');
 
+require_once APPPATH . 'classes/databaseBackup.php';
+
 class Controller_Backup extends Controller_Base {
 
     public function action_index()
@@ -44,7 +46,16 @@ class Controller_Backup extends Controller_Base {
         $post = $this->request->post();
         $save_type = Arr::get($post, 'save_type', 2);
 
-        $backup = new DatabaseBackup();
+        $dsn = 'mysql:host=localhost;dbname=OpenLabyrinth;charset=utf8';
+        $username = ''; // your OpenLabyrinth database username
+        $password = ''; // your OpenLabyrinth database password
+        try {
+	$pdo = new PDO($dsn, $username, $password);
+        } catch (PDOException $e) {
+        die('Connection failed: ' . $e->getMessage());
+        }
+
+        $backup = new DatabaseBackup($pdo);
 
         $db = Database::instance('default');
         $db->connect();
