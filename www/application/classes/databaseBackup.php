@@ -22,88 +22,66 @@ defined('SYSPATH') or die('No direct script access.');
 
 class DatabaseBackup
 {
-    public  $host = '',
-            $username = '',
-            $passwd = '',
-            $dbName = '',
-            $charset = 'utf8';
+    private $pdo;
 
-    /**
-     * Constructor initializes database
-     */
-    /*function __construct($host, $username, $passwd, $dbName, $charset = 'utf8')
+    public function __construct(PDO $pdo)
     {
-        $this->host = $host;
-        $this->username = $username;
-        $this->passwd = $passwd;
-        $this->dbName = $dbName;
-        $this->charset = $charset;
-
-        $this->initializeDatabase();
+        $this->pdo = $pdo;
     }
-
-    protected function initializeDatabase()
-    {
-        $conn = mysql_connect($this->host, $this->username, $this->passwd);
-        mysql_select_db($this->dbName, $conn);
-        if (!mysql_set_charset($this->charset, $conn)) {
-            mysql_query('SET NAMES ' . $this->charset);
-        }
-    }*/
 
     /**
      * Backup the whole database or just some tables
-     * Use '*' for whole database or 'table1, table2, table3'
+     * Use '*' for the whole database or 'table1, table2, table3'
      * @param string $tables
      */
     public function backupTables($tables = '*')
     {
         set_time_limit(0);
         try {
-
             if ($tables == '*') {
                 $tables = array();
-                $result = mysql_query('SHOW TABLES');
-                while ($row = mysql_fetch_row($result)) {
+                $result = $this->pdo->query('SHOW TABLES');
+                while ($row = $result->fetch(PDO::FETCH_NUM)) {
                     $tables[] = $row[0];
                 }
             } else {
                 $tables = is_array($tables) ? $tables : explode(',', $tables);
             }
 
-            $sql = 'SET FOREIGN_KEY_CHECKS = 0;'."\n\n";
-
-            //$sql = 'CREATE DATABASE IF NOT EXISTS ' . $this->dbName . ";\n\n";
-            //$sql .= 'USE ' . $this->dbName . ";\n\n";
+            $sql = 'SET FOREIGN_KEY_CHECKS = 0;' . "\n\n";
 
             foreach ($tables as $table) {
+                $result = $this->pdo->query('SELECT * FROM `' . $table . '`');
+    		if (!$result) {
+        		// Handle the error
+        		die('Error fetching data from table ' . $table);
+    		}
+                $numFields = $result->columnCount();
 
-                $result = mysql_query('SELECT * FROM ' . $table);
-                $numFields = mysql_num_fields($result);
-
-                //$sql .= 'DROP TABLE IF EXISTS ' . $table . ';';
-                $row2 = mysql_fetch_row(mysql_query('SHOW CREATE TABLE ' . $table));
+                $row2 = $this->pdo->query('SHOW CREATE TABLE `' . $table . '`')->fetch(PDO::FETCH_NUM);
+    		if (!$row2) {
+        		// Handle the error
+        		die('Error fetching CREATE TABLE statement for table ' . $table);
+    		}
                 $sql .= "\n" . $row2[1] . ";\n";
 
-                for ($i = 0; $i < $numFields; $i++) {
-                    while ($row = mysql_fetch_row($result)) {
-                        $sql .= 'INSERT INTO ' . $table . ' VALUES(';
-                        for ($j = 0; $j < $numFields; $j++) {
-                            $row[$j] = addslashes($row[$j]);
-                            $row[$j] = str_replace("\n", "\\n", $row[$j]);
-                            if (isset($row[$j])) {
-                                $sql .= '"' . $row[$j] . '"';
-                            } else {
-                                $sql .= '""';
-                            }
-
-                            if ($j < ($numFields - 1)) {
-                                $sql .= ',';
-                            }
+                while ($row = $result->fetch(PDO::FETCH_NUM)) {
+                    $sql .= 'INSERT INTO `' . $table . '` VALUES(';
+                    for ($j = 0; $j < $numFields; $j++) {
+                        $row[$j] = addslashes($row[$j]);
+                        $row[$j] = str_replace("\n", "\\n", $row[$j]);
+                        if (isset($row[$j])) {
+                            $sql .= '"' . $row[$j] . '"';
+                        } else {
+                            $sql .= '""';
                         }
 
-                        $sql .= ");\n";
+                        if ($j < ($numFields - 1)) {
+                            $sql .= ',';
+                        }
                     }
+
+                    $sql .= ");\n";
                 }
             }
         } catch (Exception $e) {
@@ -124,7 +102,7 @@ class DatabaseBackup
         if (empty($sql)) return false;
 
         try {
-            $fileName = $outputDir . '/db-backup-' . $this->dbName . '-' . date("Ymd-His", time()) . '.sql';
+            $fileName = $outputDir . '/db-backup-' . $this->pdo->query('SELECT DATABASE()')->fetchColumn() . '-' . date("Ymd-His", time()) . '.sql';
             return (file_put_contents($fileName, $sql) !== false);
         } catch (Exception $e) {
             var_dump($e->getMessage());
