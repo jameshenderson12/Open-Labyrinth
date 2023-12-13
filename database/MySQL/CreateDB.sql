@@ -1181,6 +1181,7 @@ CREATE TABLE IF NOT EXISTS `user_responses` (
 
 CREATE TABLE IF NOT EXISTS `user_sessions` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `uuid` VARCHAR(255) NOT NULL,
   `user_id` int(10) unsigned NOT NULL,
   `map_id` int(10) unsigned NOT NULL,
   `start_time` int(11) NOT NULL,
